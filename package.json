@@ -1,0 +1,15 @@
+{
+  "name": "ac-remote-control",
+  "version": "1.0.0",
+  "description": "Smart home AC remote control panel",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "bplist-creator": "^0.1.1",
+    "dotenv": "^17.4.2",
+    "express": "^4.19.2"
+  }
+}

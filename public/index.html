@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AC Kontrol</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,sans-serif;background:#f0f4f8;min-height:100vh;padding:1rem}
+  .wrap{max-width:540px;margin:0 auto}
+  h1{font-size:1.3rem;font-weight:700;color:#1a202c;margin-bottom:1.25rem}
+  .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem}
+  .setup-btn{background:none;border:none;cursor:pointer;font-size:1.3rem;color:#a0aec0;padding:.2rem;line-height:1}
+  .home-label{font-size:.75rem;font-weight:700;color:#a0aec0;text-transform:uppercase;letter-spacing:.08em;margin:2rem 0 .5rem}
+  .home-label:first-of-type{margin-top:0}
+
+  .dc{background:#fff;border-radius:16px;padding:1.25rem;margin-bottom:.75rem;box-shadow:0 2px 8px rgba(0,0,0,.07)}
+  .dc.off .controls{opacity:.4;pointer-events:none}
+
+  .dc-header{display:flex;align-items:center;gap:.75rem;margin-bottom:.9rem}
+  .power-btn{width:44px;height:44px;border-radius:50%;border:none;cursor:pointer;font-size:1.2rem;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:background .2s}
+  .power-btn.on{background:#c6f6d5;color:#276749}
+  .power-btn.off{background:#fed7d7;color:#c53030}
+  .dc-info{flex:1;min-width:0}
+  .dc-name{font-weight:700;font-size:.95rem;color:#1a202c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dc-status{font-size:.78rem;color:#718096;margin-top:.1rem}
+  .dc-status.loading{color:#a0aec0}
+  .refresh-btn{background:none;border:none;cursor:pointer;font-size:1rem;color:#cbd5e0;padding:.2rem}
+  .siri-btn{background:none;border:1.5px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:.75rem;color:#a0aec0;padding:.25rem .5rem;font-weight:600;white-space:nowrap}
+
+  .controls{display:flex;flex-direction:column;gap:.6rem;margin-top:.25rem}
+  .ctrl-row{display:flex;gap:.5rem;align-items:center}
+
+  select{flex:1;border:1.5px solid #e2e8f0;border-radius:9px;padding:.5rem .6rem;font-size:.88rem;background:#f7fafc;cursor:pointer;min-width:0}
+  select:focus{outline:none;border-color:#90cdf4}
+
+  .temp-row{display:flex;align-items:center;justify-content:center;gap:.75rem}
+  .temp-btn{width:40px;height:40px;border-radius:50%;border:1.5px solid #e2e8f0;background:#f7fafc;font-size:1.3rem;font-weight:300;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#2d3748;flex-shrink:0;line-height:1}
+  .temp-btn:active{background:#edf2f7}
+  .temp-val{font-size:1.6rem;font-weight:700;color:#1a202c;min-width:60px;text-align:center}
+  .temp-unit{font-size:.9rem;color:#a0aec0;font-weight:400}
+
+  .toast{position:fixed;bottom:1.2rem;left:50%;transform:translateX(-50%);padding:.6rem 1.1rem;border-radius:10px;font-size:.85rem;font-weight:500;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap;z-index:99}
+  .toast.ok{background:#c6f6d5;color:#276749}
+  .toast.err{background:#fed7d7;color:#9b2c2c}
+  .toast.show{opacity:1}
+
+  footer{text-align:center;margin-top:1rem}
+  footer a{font-size:.8rem;color:#a0aec0;text-decoration:none}
+
+  /* Automation UI */
+  .tog{position:relative;width:40px;height:22px;flex-shrink:0}
+  .tog input{opacity:0;width:0;height:0;position:absolute}
+  .tog-sl{position:absolute;inset:0;background:#cbd5e0;border-radius:22px;cursor:pointer;transition:.2s}
+  .tog-sl:before{content:'';position:absolute;width:16px;height:16px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}
+  .tog input:checked+.tog-sl{background:#48bb78}
+  .tog input:checked+.tog-sl:before{transform:translateX(18px)}
+  .auto-item{display:flex;align-items:center;gap:.6rem;padding:.6rem 0;border-bottom:1px solid #f0f4f8}
+  .auto-item:last-child{border-bottom:none}
+  .auto-body{flex:1;min-width:0}
+  .auto-name{font-size:.88rem;font-weight:600;color:#2d3748}
+  .auto-desc{font-size:.75rem;color:#a0aec0;margin-top:.1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .auto-ico{background:none;border:none;cursor:pointer;color:#cbd5e0;font-size:.85rem;padding:.15rem .3rem;line-height:1}
+  .auto-ico:hover{color:#718096}
+  .seg-row{display:flex;gap:.35rem;margin-bottom:.6rem}
+  .seg-btn{flex:1;padding:.45rem;border:1.5px solid #e2e8f0;background:#f7fafc;border-radius:8px;font-size:.8rem;cursor:pointer;color:#718096;font-weight:600;transition:.15s}
+  .seg-btn.on{border-color:#3182ce;background:#ebf8ff;color:#2b6cb0}
+  .day-row{display:flex;gap:.3rem;flex-wrap:wrap;margin-bottom:.5rem}
+  .day-btn{border:1.5px solid #e2e8f0;background:#f7fafc;border-radius:6px;padding:.28rem .45rem;font-size:.75rem;cursor:pointer;color:#718096;font-weight:600}
+  .day-btn.on{border-color:#3182ce;background:#ebf8ff;color:#2b6cb0}
+  .af-lbl{display:block;font-size:.78rem;color:#718096;margin:.55rem 0 .22rem}
+  .af-lbl small{color:#a0aec0;font-weight:400}
+  .btn-new-auto{padding:.38rem .75rem;border:none;border-radius:8px;background:#3182ce;color:#fff;font-size:.82rem;font-weight:600;cursor:pointer}
+  .btn-save-auto{flex:1;padding:.65rem;border:none;border-radius:10px;background:#3182ce;color:#fff;font-size:.9rem;font-weight:600;cursor:pointer}
+
+  @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .sk-line{background:linear-gradient(90deg,#e2e8f0 25%,#f0f4f8 50%,#e2e8f0 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:6px}
+  .dc-status.loading{animation:pulse 1.4s ease-in-out infinite}
+
+  #lock{position:fixed;inset:0;background:#f0f4f8;display:flex;align-items:center;justify-content:center;z-index:99}
+  .lcard{background:#fff;border-radius:16px;padding:1.5rem;width:100%;max-width:340px;margin:1rem;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+  .lcard h2{font-size:1rem;font-weight:700;margin-bottom:.75rem;color:#1a202c}
+  .lcard input{width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:.6rem .75rem;font-size:1rem;margin-bottom:.75rem;font-family:monospace}
+  .lcard button{width:100%;padding:.7rem;border:none;border-radius:10px;background:#3182ce;color:#fff;font-size:1rem;font-weight:600;cursor:pointer}
+  #lockErr{color:#c53030;font-size:.85rem;margin-top:.5rem;display:none}
+
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:50;display:flex;align-items:center;justify-content:center}
+  .modal{background:#fff;border-radius:16px;padding:1.5rem;width:calc(100% - 2rem);max-width:500px;max-height:88vh;overflow-y:auto}
+  .modal h3{font-size:1rem;font-weight:700;margin-bottom:.9rem}
+  .modal-close{display:block;width:100%;margin-top:1rem;padding:.65rem;border:none;border-radius:10px;background:#edf2f7;color:#4a5568;font-size:.9rem;font-weight:600;cursor:pointer}
+
+  .sc-section{margin-top:.9rem}
+  .sc-section-title{font-size:.7rem;font-weight:700;color:#a0aec0;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.35rem}
+  .sc-row{padding:.45rem 0;border-bottom:1px solid #f0f4f8}
+  .sc-row:last-child{border-bottom:none}
+  .sc-top{display:flex;align-items:center;gap:.4rem;margin-bottom:.3rem}
+  .sc-label{font-size:.85rem;font-weight:600;color:#2d3748;flex:1}
+  .sc-url-input{width:100%;font-family:monospace;font-size:.68rem;background:#f7fafc;border:1px solid #e2e8f0;border-radius:6px;padding:.3rem .5rem;color:#4a5568;cursor:text}
+  .sc-copy-btn{flex-shrink:0;padding:.28rem .6rem;border:none;border-radius:6px;background:#e2e8f0;color:#4a5568;font-size:.75rem;font-weight:600;cursor:pointer}
+  .sc-guide-btn{flex-shrink:0;padding:.28rem .6rem;border:none;border-radius:6px;background:#3182ce;color:#fff;font-size:.75rem;font-weight:600;cursor:pointer}
+
+.overlay2{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:60;display:flex;align-items:center;justify-content:center}
+  .modal2{background:#fff;border-radius:16px;padding:1.5rem;width:calc(100% - 2rem);max-width:440px}
+  .modal2 h3{font-size:.95rem;font-weight:700;margin-bottom:1rem;color:#1a202c}
+  .guide-url-row{display:flex;gap:.4rem;align-items:center;margin-bottom:1rem}
+  .guide-url-input{flex:1;font-family:monospace;font-size:.68rem;background:#f7fafc;border:1px solid #e2e8f0;border-radius:6px;padding:.35rem .5rem;color:#4a5568;min-width:0}
+  .guide-copy-btn{flex-shrink:0;padding:.35rem .75rem;border:none;border-radius:6px;background:#e2e8f0;color:#4a5568;font-size:.78rem;font-weight:600;cursor:pointer}
+  .guide-steps{display:flex;flex-direction:column;gap:.55rem}
+  .guide-step{display:flex;gap:.6rem;align-items:flex-start;font-size:.84rem;color:#4a5568}
+  .guide-num{background:#3182ce;color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;flex-shrink:0;margin-top:.1rem}
+</style>
+</head>
+<body>
+
+<div id="lock" style="display:none">
+  <div class="lcard">
+    <h2>API Key</h2>
+    <input type="password" id="lockKey" placeholder="" autocomplete="off"
+           onkeydown="if(event.key==='Enter')unlock()">
+    <button onclick="unlock()">Giriş</button>
+    <div id="lockErr">Geçersiz API key</div>
+  </div>
+</div>
+
+<div class="wrap" id="app" style="display:none">
+  <div class="top">
+    <h1>Klima Kontrol Paneli</h1>
+    <button class="setup-btn" onclick="location.href='/setup/'" title="Girişi yenile">⚙️</button>
+  </div>
+  <div id="devices"></div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin:2rem 0 .5rem">
+    <div class="home-label" style="margin:0">Otomasyonlar</div>
+    <button class="btn-new-auto" onclick="showAutoForm(null)">+ Ekle</button>
+  </div>
+  <div class="dc" id="auto-container">
+    <div id="av-items"></div>
+    <p id="av-empty" style="text-align:center;color:#a0aec0;font-size:.88rem;padding:.25rem 0;margin:0">Henüz otomasyon yok.</p>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<div class="overlay" id="overlay-auto" style="display:none" onclick="if(event.target===this)closeAuto()">
+  <div class="modal">
+    <div id="av-form">
+      <h3 id="avf-title" style="margin-bottom:.75rem">Yeni Otomasyon</h3>
+      <div id="avf-err" class="err" style="display:none"></div>
+
+      <span class="af-lbl">Ad</span>
+      <input type="text" id="avf-name" placeholder="Sabah açılışı" style="width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:.5rem .65rem;font-size:.9rem;margin-bottom:.1rem">
+
+      <span class="af-lbl">Cihaz</span>
+      <select id="avf-device" style="width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:.5rem .65rem;font-size:.88rem;background:#f7fafc;margin-bottom:.1rem"></select>
+
+      <span class="af-lbl">Tür</span>
+      <div class="seg-row">
+        <button class="seg-btn on" id="avf-ts" onclick="setAvType('schedule')">⏰ Zamanlama</button>
+        <button class="seg-btn"    id="avf-tt" onclick="setAvType('temperature')">🌡 Sıcaklık</button>
+      </div>
+
+      <div id="avf-sf">
+        <span class="af-lbl">Saat</span>
+        <input type="time" id="avf-time" value="07:30" style="border:1.5px solid #e2e8f0;border-radius:8px;padding:.5rem .65rem;font-size:.9rem;margin-bottom:.1rem">
+        <span class="af-lbl">Günler <small>(boş = her gün)</small></span>
+        <div class="day-row" id="avf-days">
+          <button class="day-btn" data-day="1">Pzt</button>
+          <button class="day-btn" data-day="2">Sal</button>
+          <button class="day-btn" data-day="3">Çar</button>
+          <button class="day-btn" data-day="4">Per</button>
+          <button class="day-btn" data-day="5">Cum</button>
+          <button class="day-btn" data-day="6">Cmt</button>
+          <button class="day-btn" data-day="0">Paz</button>
+        </div>
+      </div>
+
+      <div id="avf-tf" style="display:none">
+        <span class="af-lbl">Koşul</span>
+        <div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;margin-bottom:.1rem">
+          <span style="font-size:.85rem;color:#4a5568">Oda sıcaklığı</span>
+          <select id="avf-op" style="border:1.5px solid #e2e8f0;border-radius:8px;padding:.4rem .5rem;font-size:.88rem;background:#f7fafc">
+            <option value=">">&gt;</option>
+            <option value="<">&lt;</option>
+          </select>
+          <input type="number" id="avf-cv" value="28" min="10" max="50" style="width:58px;border:1.5px solid #e2e8f0;border-radius:8px;padding:.4rem .5rem;font-size:.9rem">
+          <span style="font-size:.85rem;color:#4a5568">°C olduğunda</span>
+        </div>
+        <p style="font-size:.75rem;color:#a0aec0;margin-top:.15rem">Koşul sağlandığı sürece her dakika tekrar tetiklenir</p>
+      </div>
+
+      <span class="af-lbl" style="margin-top:.35rem">İşlem</span>
+      <div class="seg-row">
+        <button class="seg-btn on" id="avf-ca" onclick="setAvCmd('on')">Aç</button>
+        <button class="seg-btn"    id="avf-co" onclick="setAvCmd('off')">Kapat</button>
+      </div>
+      <div id="avf-on">
+        <span class="af-lbl">Mod</span>
+        <select id="avf-mode" style="width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:.5rem .65rem;font-size:.88rem;background:#f7fafc;margin-bottom:.1rem">
+          <option value="cool">❄️ Soğutma</option>
+          <option value="heat">🔥 Isıtma</option>
+          <option value="dry">💧 Nem Alma</option>
+        </select>
+        <span class="af-lbl">Sıcaklık <small>(opsiyonel)</small></span>
+        <div style="display:flex;align-items:center;gap:.5rem">
+          <input type="number" id="avf-temp" min="18" max="30" placeholder="22" style="width:65px;border:1.5px solid #e2e8f0;border-radius:8px;padding:.5rem .6rem;font-size:.9rem">
+          <span style="color:#718096;font-size:.88rem">°C</span>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:.5rem;margin-top:1rem">
+        <button class="modal-close" style="flex:1;margin:0" onclick="hideAutoForm()">İptal</button>
+        <button class="btn-save-auto" onclick="saveAuto()">Kaydet</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" style="display:none" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <h3 id="modalTitle"></h3>
+    <div id="modalUrls"></div>
+    <button class="modal-close" onclick="closeModal()">Kapat</button>
+  </div>
+</div>
+
+<div class="overlay2" id="overlay2" style="display:none" onclick="if(event.target===this)closeGuide()">
+  <div class="modal2">
+    <h3 id="guide-title"></h3>
+    <div class="guide-url-row">
+      <input class="guide-url-input" id="guide-url" type="text" readonly>
+      <button class="guide-copy-btn" id="guide-copy">Kopyala</button>
+    </div>
+    <div class="guide-steps">
+      <div class="guide-step"><span class="guide-num">1</span><span>Yukaridaki URL'yi kopyala</span></div>
+      <div class="guide-step"><span class="guide-num">2</span><span>iPhone'da <strong>Kisayollar</strong> uygulamasini ac, sag ustte <strong>+</strong></span></div>
+      <div class="guide-step"><span class="guide-num">3</span><span><strong>Eylem Ekle</strong> → <em>URL icerigini al</em> ara ve sec → URL'yi yapistir</span></div>
+      <div class="guide-step"><span class="guide-num">4</span><span>Ustteki basliga dokun → kisayola isim ver → <strong>Siri'ye Ekle</strong></span></div>
+    </div>
+    <button class="modal-close" onclick="closeGuide()">Kapat</button>
+  </div>
+</div>
+
+<script>
+let apiKey   = localStorage.getItem('vac_key');
+let _devices = [];
+let _autos   = [];
+let _editId  = null;
+
+// ── KILIT ───────────────────────────────────────────────
+async function unlock() {
+  const k = document.getElementById('lockKey').value.trim();
+  if (!k) return;
+  const res = await fetch('/ac/devices?api_key=' + encodeURIComponent(k));
+  if (res.status === 401) { document.getElementById('lockErr').style.display = 'block'; return; }
+  localStorage.setItem('vac_key', k);
+  apiKey = k;
+  if (!res.ok) {
+    if (res.status === 503) { location.href = '/setup/'; return; }
+    const err = await res.json().catch(() => ({}));
+    document.getElementById('lockErr').textContent = err.error ?? 'Sunucu hatası';
+    document.getElementById('lockErr').style.display = 'block';
+    return;
+  }
+  await renderDevices(await res.json());
+  document.getElementById('lock').style.display = 'none';
+  document.getElementById('app').style.display  = 'block';
+  loadAutos();
+}
+
+async function loadDevices() {
+  const devEl = document.getElementById('devices');
+  devEl.innerHTML = '';
+  devEl.appendChild(skeletonCard());
+  devEl.appendChild(skeletonCard());
+  document.getElementById('lock').style.display = 'none';
+  document.getElementById('app').style.display  = 'block';
+
+  let res;
+  try {
+    res = await fetch('/ac/devices?api_key=' + encodeURIComponent(apiKey));
+  } catch (e) {
+    devEl.innerHTML = `<p style="color:#c53030;padding:1rem">Fetch hatası: ${e.message}</p>`;
+    return;
+  }
+  if (!res.ok) {
+    if (res.status === 401) { localStorage.removeItem('vac_key'); location.reload(); return; }
+    if (res.status === 503) { location.href = '/setup/'; return; }
+    const err = await res.json().catch(() => ({}));
+    devEl.innerHTML = `<p style="color:#c53030;padding:1rem">Sunucu hatası: ${err.error ?? res.status}</p>`;
+    return;
+  }
+  await renderDevices(await res.json());
+  loadAutos();
+}
+
+// ── SKELETON ────────────────────────────────────────────
+function skeletonCard() {
+  const el = document.createElement('div');
+  el.className = 'dc off';
+  el.innerHTML = `
+    <div class="dc-header">
+      <div style="width:44px;height:44px;border-radius:50%;flex-shrink:0" class="sk-line"></div>
+      <div class="dc-info" style="display:flex;flex-direction:column;gap:.45rem">
+        <div class="sk-line" style="width:110px;height:13px"></div>
+        <div class="sk-line" style="width:160px;height:10px"></div>
+      </div>
+    </div>
+    <div class="controls" style="pointer-events:none">
+      <div class="ctrl-row">
+        <div class="sk-line" style="flex:1;height:36px;border-radius:9px"></div>
+        <div class="sk-line" style="flex:1;height:36px;border-radius:9px"></div>
+      </div>
+      <div class="temp-row">
+        <div class="sk-line" style="width:40px;height:40px;border-radius:50%"></div>
+        <div class="sk-line" style="width:70px;height:32px;border-radius:8px"></div>
+        <div class="sk-line" style="width:40px;height:40px;border-radius:50%"></div>
+      </div>
+    </div>`;
+  return el;
+}
+
+// ── RENDER ──────────────────────────────────────────────
+async function renderDevices(devices) {
+  const byHome = {};
+  for (const d of devices) (byHome[d.homeName] ??= []).push(d);
+  const container = document.getElementById('devices');
+  container.innerHTML = '';
+
+  const toLoad = [];
+
+  _devices = devices;
+  for (const [home, devs] of Object.entries(byHome)) {
+    const lbl = document.createElement('div');
+    lbl.className = 'home-label';
+    lbl.textContent = home;
+    container.appendChild(lbl);
+    for (const d of devs) {
+      const card = deviceCard(d.deviceName, d.deviceId);
+      container.appendChild(card);
+      toLoad.push({ card, deviceId: d.deviceId });
+    }
+  }
+
+  for (const { card, deviceId } of toLoad) loadStatus(card, deviceId);
+}
+
+// ── KART ────────────────────────────────────────────────
+function deviceCard(name, deviceId) {
+  const el = document.createElement('div');
+  el.className = 'dc off';
+  el.innerHTML = `
+    <div class="dc-header">
+      <button class="power-btn off">⏻</button>
+      <div class="dc-info">
+        <div class="dc-name">${name}</div>
+        <div class="dc-status loading">Yükleniyor…</div>
+      </div>
+      <button class="refresh-btn" title="Yenile">↻</button>
+      <button class="siri-btn">API & Shortcut</button>
+    </div>
+    <div class="controls">
+      <div class="ctrl-row">
+        <select class="mode-sel">
+          <option value="cool">❄️ Soğutma</option>
+          <option value="heat">🔥 Isıtma</option>
+          <option value="dry">💧 Nem Alma</option>
+        </select>
+        <select class="fan-sel">
+          <option value="auto">Fan: Oto</option>
+          <option value="fan1">Fan 1</option>
+          <option value="fan2">Fan 2</option>
+          <option value="fan3">Fan 3</option>
+          <option value="fan4">Fan 4</option>
+          <option value="fan5">Fan 5</option>
+        </select>
+      </div>
+      <div class="temp-row">
+        <button class="temp-btn tminus">−</button>
+        <div class="temp-val">22<span class="temp-unit">°C</span></div>
+        <button class="temp-btn tplus">+</button>
+      </div>
+    </div>`;
+
+  // Scoped referanslar — kart içinde querySelector yeterli
+  const pwrBtn  = el.querySelector('.power-btn');
+  const modeSel = el.querySelector('.mode-sel');
+  const fanSel  = el.querySelector('.fan-sel');
+  const tempVal = el.querySelector('.temp-val');
+
+  pwrBtn.addEventListener('click', () => {
+    const isOn = !el.classList.contains('off');
+    if (isOn) {
+      sendCmd(el, deviceId, 'off');
+    } else {
+      sendCmd(el, deviceId, 'on', { mode: modeSel.value });
+    }
+  });
+
+  modeSel.addEventListener('change', e => sendCmd(el, deviceId, 'mode', { mode: e.target.value }));
+  fanSel.addEventListener('change',  e => sendCmd(el, deviceId, 'fan',  { fan:  e.target.value }));
+
+  let tempTimer = null;
+  function changeTemp(dir) {
+    const cur  = parseInt(tempVal.textContent);
+    const next = Math.min(30, Math.max(18, cur + dir));
+    tempVal.innerHTML = next + '<span class="temp-unit">°C</span>';
+    clearTimeout(tempTimer);
+    tempTimer = setTimeout(() => sendCmd(el, deviceId, 'temp', { temp: next }), 700);
+  }
+  el.querySelector('.tminus').addEventListener('click', () => changeTemp(-1));
+  el.querySelector('.tplus').addEventListener('click',  () => changeTemp(+1));
+
+  el.querySelector('.refresh-btn').addEventListener('click', () => loadStatus(el, deviceId));
+  el.querySelector('.siri-btn').addEventListener('click', () => openSiriModal(el, name, deviceId));
+
+  return el;
+}
+
+// ── STATUS ──────────────────────────────────────────────
+async function loadStatus(cardEl, deviceId) {
+  try {
+    const res = await fetch(`/ac/status?device_id=${encodeURIComponent(deviceId)}&api_key=${apiKey}`);
+    if (!res.ok) throw new Error(res.status);
+    applyStatus(cardEl, await res.json());
+  } catch {
+    cardEl.querySelector('.dc-status').textContent = 'Durum alınamadı';
+  }
+}
+
+function applyStatus(cardEl, s) {
+  // Geçersiz sıcaklık değerini yoksay, önceki değeri koru
+  const prev = cardEl._s;
+  if (s.temp < 16 || s.temp > 30) s = { ...s, temp: prev?.temp ?? 22 };
+  cardEl._s = s;
+
+  const stEl    = cardEl.querySelector('.dc-status');
+  const pwrBtn  = cardEl.querySelector('.power-btn');
+  const modeSel = cardEl.querySelector('.mode-sel');
+  const fanSel  = cardEl.querySelector('.fan-sel');
+  const tempVal = cardEl.querySelector('.temp-val');
+  const modes   = { cool:'Soğutma', heat:'Isıtma', dry:'Nem Alma' };
+  const fans    = { auto:'Oto', fan1:'Fan 1', fan2:'Fan 2', fan3:'Fan 3', fan4:'Fan 4' };
+
+  cardEl.classList.toggle('off', !s.on);
+  pwrBtn.className = 'power-btn ' + (s.on ? 'on' : 'off');
+
+  stEl.className   = 'dc-status';
+  stEl.textContent = s.on
+    ? `${modes[s.mode]??s.mode} · ${s.temp}°C · ${fans[s.fan]??s.fan} · Oda: ${s.roomTemp}°C`
+    : `Kapalı · Oda: ${s.roomTemp ?? '?'}°C`;
+
+  if (s.mode && s.mode !== 'off') modeSel.value = s.mode;
+  if (s.fan)  fanSel.value = s.fan;
+  if (s.temp) tempVal.innerHTML = s.temp + '<span class="temp-unit">°C</span>';
+}
+
+// ── KOMUTLAR ────────────────────────────────────────────
+const reloadTimers = new Map();
+
+async function sendCmd(cardEl, deviceId, cmd, extra = {}) {
+  const params = new URLSearchParams({ device_id: deviceId, cmd, api_key: apiKey, ...extra });
+  try {
+    const res  = await fetch('/ac?' + params);
+    const data = await res.json();
+    if (!data.ok) { toast(data.error, 'err'); return; }
+    toast('✓', 'ok');
+    const cur  = cardEl._s ?? { on: false, mode: 'cool', fan: 'auto', temp: 22, roomTemp: 0 };
+    const next = { ...cur };
+    if      (cmd === 'off')  { next.on = false; }
+    else if (cmd === 'on')   { next.on = true; Object.assign(next, extra); }
+    else if (cmd === 'mode') { next.mode = extra.mode; }
+    else if (cmd === 'fan')  { next.fan  = extra.fan;  }
+    else if (cmd === 'temp') { next.temp = Number(extra.temp); }
+    applyStatus(cardEl, next);
+    clearTimeout(reloadTimers.get(cardEl));
+    reloadTimers.set(cardEl, setTimeout(() => loadStatus(cardEl, deviceId), 30000));
+  } catch { toast('Bağlantı hatası', 'err'); }
+}
+
+// ── API & SHORTCUT MODAL ────────────────────────────────
+function openSiriModal(cardEl, name, deviceId) {
+  const origin = location.origin;
+  const d      = encodeURIComponent(deviceId);
+  const temp   = cardEl._s?.temp ?? 22;
+
+  const sections = [
+    { title: 'Açma / Kapama', actions: [
+      { label: 'Aç',    params: `device_id=${d}&cmd=on` },
+      { label: 'Kapat', params: `device_id=${d}&cmd=off` },
+    ]},
+    { title: 'Mod', actions: [
+      { label: 'Sogutma', params: `device_id=${d}&cmd=mode&mode=cool` },
+      { label: 'Isitma',  params: `device_id=${d}&cmd=mode&mode=heat` },
+      { label: 'Nem Alma', params: `device_id=${d}&cmd=mode&mode=dry` },
+    ]},
+    { title: 'Sicaklik', actions: [
+      { label: `${temp} derece`, params: `device_id=${d}&cmd=temp&temp=${temp}` },
+    ]},
+    { title: 'Fan', actions: [
+      { label: 'Otomatik', params: `device_id=${d}&cmd=fan&fan=auto` },
+      { label: 'Fan 1',    params: `device_id=${d}&cmd=fan&fan=fan1` },
+      { label: 'Fan 2',    params: `device_id=${d}&cmd=fan&fan=fan2` },
+      { label: 'Fan 3',    params: `device_id=${d}&cmd=fan&fan=fan3` },
+      { label: 'Fan 4',    params: `device_id=${d}&cmd=fan&fan=fan4` },
+      { label: 'Fan 5',    params: `device_id=${d}&cmd=fan&fan=fan5` },
+    ]},
+  ];
+
+  document.getElementById('modalTitle').textContent = name;
+  document.getElementById('modalUrls').innerHTML = sections.map(({ title, actions }) => `
+    <div class="sc-section">
+      <div class="sc-section-title">${title}</div>
+      ${actions.map(({ label, params }) => {
+        const url = `${origin}/ac?${params}&api_key=${apiKey}`;
+        return `<div class="sc-row">
+          <div class="sc-top">
+            <span class="sc-label">${label}</span>
+            <button class="sc-copy-btn" data-url="${url}">Kopyala</button>
+            <button class="sc-guide-btn" data-url="${url}" data-label="${label}">Shortcut</button>
+          </div>
+          <input class="sc-url-input" type="text" value="${url}" readonly>
+        </div>`;
+      }).join('')}
+    </div>`).join('');
+
+  const el = document.getElementById('modalUrls');
+  el.querySelectorAll('.sc-copy-btn').forEach(btn => {
+    btn.addEventListener('click', () => copyToClipboard(btn.dataset.url, btn));
+  });
+  el.querySelectorAll('.sc-guide-btn').forEach(btn => {
+    btn.addEventListener('click', () => openGuide(btn.dataset.label, btn.dataset.url));
+  });
+
+  document.getElementById('overlay').style.display = 'flex';
+}
+
+function closeModal() { document.getElementById('overlay').style.display = 'none'; }
+
+// ── SHORTCUT GUIDE MODAL ────────────────────────────────
+function openGuide(label, url) {
+  document.getElementById('guide-title').textContent = label;
+  const input = document.getElementById('guide-url');
+  input.value = url;
+  const copyBtn = document.getElementById('guide-copy');
+  copyBtn.textContent = 'Kopyala';
+  copyBtn.onclick = () => copyToClipboard(url, copyBtn);
+  document.getElementById('overlay2').style.display = 'flex';
+}
+
+function closeGuide() { document.getElementById('overlay2').style.display = 'none'; }
+
+function copyToClipboard(text, btn) {
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = 'Kopyalandi';
+    setTimeout(() => btn.textContent = orig, 1500);
+  });
+}
+
+// ── TOAST ───────────────────────────────────────────────
+function toast(msg, type = 'ok') {
+  const el = document.getElementById('toast');
+  el.className = 'toast ' + type + ' show';
+  el.textContent = msg;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+// ── OTOMASYONLAR ────────────────────────────────────────
+const DAY_TR  = ['Paz','Pzt','Sal','Çar','Per','Cum','Cmt'];
+const MODE_TR = { cool:'Soğutma', heat:'Isıtma', dry:'Nem Alma' };
+
+function autoDesc(a) {
+  const act = a.action.cmd === 'off' ? 'Kapat'
+    : (MODE_TR[a.action.mode] ?? a.action.mode) + (a.action.temp ? ` ${a.action.temp}°C` : '');
+  if (a.type === 'schedule') {
+    const days = a.schedule.days?.length
+      ? a.schedule.days.slice().sort().map(d => DAY_TR[d]).join(', ')
+      : 'Her gün';
+    return `${days} · ${a.schedule.time} · ${act}`;
+  }
+  const op = a.condition.operator === '>' ? '›' : '‹';
+  return `Sıcaklık ${op} ${a.condition.value}°C · ${act}`;
+}
+
+function renderAutoList() {
+  const el    = document.getElementById('av-items');
+  const empty = document.getElementById('av-empty');
+  if (!_autos.length) { el.innerHTML = ''; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+  const devName = id => _devices.find(d => d.deviceId === id)?.deviceName ?? id;
+  el.innerHTML = _autos.map(a => `
+    <div class="auto-item">
+      <label class="tog">
+        <input type="checkbox" ${a.enabled ? 'checked' : ''} onchange="toggleAuto('${a.id}',this.checked)">
+        <span class="tog-sl"></span>
+      </label>
+      <div class="auto-body">
+        <div class="auto-name">${a.name}</div>
+        <div class="auto-desc">${devName(a.deviceId)} · ${autoDesc(a)}</div>
+      </div>
+      <button class="auto-ico" onclick="showAutoForm('${a.id}')">✏️</button>
+      <button class="auto-ico" onclick="deleteAuto('${a.id}')">✕</button>
+    </div>`).join('');
+}
+
+async function loadAutos() {
+  const res = await fetch('/automations?api_key=' + encodeURIComponent(apiKey));
+  _autos = await res.json();
+  renderAutoList();
+}
+
+function closeAuto() { document.getElementById('overlay-auto').style.display = 'none'; }
+
+function showAutoForm(id) {
+  _editId = id;
+  const a = id ? _autos.find(x => x.id === id) : null;
+  document.getElementById('avf-title').textContent = id ? 'Otomasyonu Düzenle' : 'Yeni Otomasyon';
+  document.getElementById('avf-err').style.display = 'none';
+
+  const devSel = document.getElementById('avf-device');
+  devSel.innerHTML = _devices.map(d => `<option value="${d.deviceId}">${d.deviceName}</option>`).join('');
+
+  document.getElementById('avf-name').value = a?.name ?? '';
+  devSel.value = a?.deviceId ?? _devices[0]?.deviceId ?? '';
+
+  setAvType(a?.type ?? 'schedule');
+  setAvCmd(a?.action?.cmd ?? 'on');
+
+  document.getElementById('avf-time').value = a?.schedule?.time ?? '07:30';
+  document.querySelectorAll('#avf-days .day-btn').forEach(btn =>
+    btn.classList.toggle('on', (a?.schedule?.days ?? []).includes(Number(btn.dataset.day)))
+  );
+  document.getElementById('avf-op').value   = a?.condition?.operator ?? '>';
+  document.getElementById('avf-cv').value   = a?.condition?.value    ?? 28;
+  document.getElementById('avf-mode').value = a?.action?.mode        ?? 'cool';
+  document.getElementById('avf-temp').value = a?.action?.temp        ?? '';
+
+  document.getElementById('overlay-auto').style.display = 'flex';
+}
+
+function hideAutoForm() { closeAuto(); }
+
+function setAvType(t) {
+  document.getElementById('avf-ts').classList.toggle('on', t === 'schedule');
+  document.getElementById('avf-tt').classList.toggle('on', t === 'temperature');
+  document.getElementById('avf-sf').style.display = t === 'schedule'    ? 'block' : 'none';
+  document.getElementById('avf-tf').style.display = t === 'temperature' ? 'block' : 'none';
+}
+
+function setAvCmd(c) {
+  document.getElementById('avf-ca').classList.toggle('on', c === 'on');
+  document.getElementById('avf-co').classList.toggle('on', c === 'off');
+  document.getElementById('avf-on').style.display = c === 'on' ? 'block' : 'none';
+}
+
+document.addEventListener('click', e => {
+  if (e.target.classList.contains('day-btn')) e.target.classList.toggle('on');
+});
+
+async function saveAuto() {
+  const name = document.getElementById('avf-name').value.trim();
+  if (!name) return showAvErr('Ad boş bırakılamaz');
+  const type = document.getElementById('avf-ts').classList.contains('on') ? 'schedule' : 'temperature';
+  const cmd  = document.getElementById('avf-ca').classList.contains('on') ? 'on' : 'off';
+  const tempVal = document.getElementById('avf-temp').value;
+
+  const body = {
+    name,
+    deviceId: document.getElementById('avf-device').value,
+    type,
+    action: cmd === 'off' ? { cmd: 'off' } : {
+      cmd: 'on',
+      mode: document.getElementById('avf-mode').value,
+      ...(tempVal ? { temp: Number(tempVal) } : {}),
+    },
+  };
+
+  if (type === 'schedule') {
+    const days = [...document.querySelectorAll('#avf-days .day-btn.on')].map(b => Number(b.dataset.day));
+    body.schedule = { time: document.getElementById('avf-time').value, days };
+  } else {
+    body.condition = { operator: document.getElementById('avf-op').value, value: Number(document.getElementById('avf-cv').value) };
+  }
+
+  const method = _editId ? 'PATCH' : 'POST';
+  const url    = `/automations${_editId ? '/' + _editId : ''}?api_key=${encodeURIComponent(apiKey)}`;
+  try {
+    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await res.json();
+    if (!res.ok) return showAvErr(data.error ?? 'Hata');
+    const lr = await fetch('/automations?api_key=' + encodeURIComponent(apiKey));
+    _autos = await lr.json();
+    renderAutoList();
+    hideAutoForm();
+  } catch (e) { showAvErr(e.message); }
+}
+
+async function toggleAuto(id, enabled) {
+  await fetch(`/automations/${id}?api_key=${encodeURIComponent(apiKey)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled }),
+  });
+  const a = _autos.find(x => x.id === id);
+  if (a) a.enabled = enabled;
+}
+
+async function deleteAuto(id) {
+  if (!confirm('Bu otomasyonu silmek istiyor musun?')) return;
+  await fetch(`/automations/${id}?api_key=${encodeURIComponent(apiKey)}`, { method: 'DELETE' });
+  _autos = _autos.filter(a => a.id !== id);
+  renderAutoList();
+}
+
+function showAvErr(msg) {
+  const el = document.getElementById('avf-err');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+// ── BAŞLAT ──────────────────────────────────────────────
+if (apiKey) {
+  loadDevices();
+} else {
+  document.getElementById('lock').style.display = 'flex';
+  setTimeout(() => document.getElementById('lockKey').focus(), 50);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AC Kontrol — Kurulum</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,sans-serif;background:#f0f4f8;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem}
+  .wrap{width:100%;max-width:460px}
+  h1{font-size:1.3rem;font-weight:700;margin-bottom:.3rem;color:#1a202c}
+  .sub{color:#718096;font-size:.9rem;margin-bottom:1.5rem}
+  .card{background:#fff;border-radius:16px;padding:1.5rem;box-shadow:0 2px 8px rgba(0,0,0,.08);margin-bottom:1rem}
+  label{display:block;font-size:.82rem;color:#718096;margin-bottom:.4rem}
+  input{width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:.6rem .75rem;font-size:1rem;font-family:monospace;margin-bottom:.75rem}
+  .hint{font-size:.8rem;color:#a0aec0;margin-top:-.5rem;margin-bottom:.75rem}
+  .btn{display:block;width:100%;padding:.75rem;border:none;border-radius:10px;font-size:1rem;font-weight:600;cursor:pointer}
+  .btn-blue{background:#3182ce;color:#fff}
+  .btn:disabled{opacity:.5;cursor:default}
+  .err{background:#fed7d7;color:#9b2c2c;padding:.75rem 1rem;border-radius:8px;margin-bottom:.75rem;font-size:.88rem}
+  .step{display:none}
+  .step.active{display:block}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>AC Kontrol — Kurulum</h1>
+  <p class="sub">İlk kurulum</p>
+
+  <!-- Adım 1: API Key (localStorage'da varsa atlanır) -->
+  <div class="card step" id="s1">
+    <div id="err1" class="err" style="display:none"></div>
+    <label>API Key</label>
+    <input type="password" id="apiKeyInput" placeholder="" autocomplete="new-password">
+    <p class="hint">Bu değer .env dosyasındaki API_KEY ile aynı olmalı.</p>
+    <button class="btn btn-blue" onclick="nextStep()">Devam</button>
+  </div>
+
+  <!-- Adım 2: Giriş -->
+  <div class="card step" id="s2">
+    <div id="err2" class="err" style="display:none"></div>
+    <p style="font-size:.9rem;color:#4a5568;line-height:1.6;margin-bottom:1rem">
+      Hesabınla giriş yap.
+    </p>
+    <button class="btn btn-blue" id="loginBtn" onclick="startLogin()">Giriş Yap</button>
+    <p style="text-align:center;margin-top:1rem;font-size:.82rem;color:#a0aec0">
+      veya <a href="#" onclick="toggleManual(event)" style="color:#3182ce;text-decoration:none">refresh token ile manuel giriş</a>
+    </p>
+  </div>
+
+  <!-- Adım 2b: Prod callback URL yapıştır -->
+  <div class="card step" id="s2b">
+    <div id="err2b" class="err" style="display:none"></div>
+    <p style="font-size:.9rem;color:#4a5568;line-height:1.6;margin-bottom:1rem">
+      Giriş ekranı yeni sekmede açıldı.<br>
+      Google girişini tamamla. Tarayıcı <strong>localhost:3000</strong> adresini açmaya çalışacak — sayfa yüklenmeyecek ama adres çubuğunda URL görünecek.
+    </p>
+    <p style="font-size:.9rem;color:#4a5568;margin-bottom:.75rem">O URL'yi kopyalayıp buraya yapıştır:</p>
+    <input type="text" id="callbackUrlInput" placeholder="http://localhost:3000/?code=...">
+    <button class="btn btn-blue" id="callbackBtn" onclick="submitCallback()">Devam</button>
+  </div>
+
+  <!-- Manuel token girişi -->
+  <div class="card step" id="s3">
+    <div id="err3" class="err" style="display:none"></div>
+    <label>Refresh Token</label>
+    <textarea id="tokenInput" rows="4" style="width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:.6rem .75rem;font-size:.78rem;font-family:monospace;resize:vertical;margin-bottom:.5rem"></textarea>
+    <p class="hint">Mobil uygulama trafiğinden elde edilen refresh token.</p>
+    <button class="btn btn-blue" id="saveTokenBtn" onclick="saveToken()">Kaydet ve Devam Et</button>
+    <p style="text-align:center;margin-top:1rem;font-size:.82rem;color:#a0aec0">
+      <a href="#" onclick="toggleManual(event)" style="color:#3182ce;text-decoration:none">geri dön</a>
+    </p>
+  </div>
+</div>
+
+<script>
+  let apiKey = localStorage.getItem('vac_key') ?? '';
+
+  const params = new URLSearchParams(location.search);
+  if (params.get('error')) {
+    showErr('err2', 'Hata: ' + params.get('error'));
+  }
+
+  // API key zaten varsa adım 2'ye geç, yoksa adım 1'i göster
+  if (apiKey) {
+    document.getElementById('s2').classList.add('active');
+  } else {
+    document.getElementById('s1').classList.add('active');
+  }
+
+  function showErr(id, msg) {
+    const el = document.getElementById(id);
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+
+  function nextStep() {
+    const k = document.getElementById('apiKeyInput').value.trim();
+    if (!k) return showErr('err1', 'API key boş bırakılamaz');
+    apiKey = k;
+    localStorage.setItem('vac_key', k);
+    document.getElementById('s1').classList.remove('active');
+    document.getElementById('s2').classList.add('active');
+  }
+
+  const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+
+  async function startLogin() {
+    const btn = document.getElementById('loginBtn');
+    btn.disabled = true;
+    btn.textContent = 'Hazırlanıyor...';
+    const res  = await fetch('/setup/start', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ apiKey }),
+    });
+    const data = await res.json();
+    if (isLocal) {
+      location.href = data.authUrl;
+    } else {
+      window.open(data.authUrl, '_blank');
+      document.getElementById('s2').classList.remove('active');
+      document.getElementById('s2b').classList.add('active');
+    }
+  }
+
+  async function submitCallback() {
+    const url = document.getElementById('callbackUrlInput').value.trim();
+    if (!url) return showErr('err2b', 'URL boş bırakılamaz');
+    const btn = document.getElementById('callbackBtn');
+    btn.disabled = true;
+    btn.textContent = 'Doğrulanıyor...';
+    try {
+      const res  = await fetch('/setup/callback', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ callbackUrl: url, apiKey }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showErr('err2b', data.error); btn.disabled = false; btn.textContent = 'Devam'; return; }
+      if (data.apiKey) localStorage.setItem('vac_key', data.apiKey);
+      else if (apiKey)  localStorage.setItem('vac_key', apiKey);
+      location.href = '/';
+    } catch (e) {
+      showErr('err2b', e.message);
+      btn.disabled = false;
+      btn.textContent = 'Devam';
+    }
+  }
+
+  function toggleManual(e) {
+    e.preventDefault();
+    const s2 = document.getElementById('s2');
+    const s3 = document.getElementById('s3');
+    if (s2.classList.contains('active')) {
+      s2.classList.remove('active');
+      s3.classList.add('active');
+    } else {
+      s3.classList.remove('active');
+      s2.classList.add('active');
+    }
+  }
+
+  async function saveToken() {
+    const token = document.getElementById('tokenInput').value.trim();
+    if (!token) return showErr('err3', 'Token boş bırakılamaz');
+    const btn = document.getElementById('saveTokenBtn');
+    btn.disabled = true;
+    btn.textContent = 'Doğrulanıyor...';
+    try {
+      const res  = await fetch('/setup/token', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ refreshToken: token, apiKey }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showErr('err3', data.error); btn.disabled = false; btn.textContent = 'Kaydet ve Devam Et'; return; }
+      if (apiKey) localStorage.setItem('vac_key', apiKey);
+      location.href = '/';
+    } catch (e) {
+      showErr('err3', e.message);
+      btn.disabled = false;
+      btn.textContent = 'Kaydet ve Devam Et';
+    }
+  }
+</script>
+</body>
+</html>
